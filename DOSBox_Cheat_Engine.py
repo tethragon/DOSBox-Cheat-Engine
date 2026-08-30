@@ -14,7 +14,7 @@ import socket
 # ⚠️ EDIT THE VERSION NUMBER HERE ⚠️ 
 # Αλλάζεις μόνο αυτόν τον αριθμό και ενημερώνεται αυτόματα παντού στην εφαρμογή!
 # ==============================================================================
-APP_VERSION = "v21"
+APP_VERSION = "v23"
 # ==============================================================================
 
 PORT = 5000
@@ -303,7 +303,11 @@ INDEX_HTML = """<!DOCTYPE html>
         document.getElementById('modalInput').value = defaultVal;
         document.getElementById('modalBg').style.display = 'flex';
         modalCallback = callback;
-        setTimeout(() => document.getElementById('modalInput').focus(), 50);
+        setTimeout(() => {
+            const input = document.getElementById('modalInput');
+            input.focus();
+            input.select();
+        }, 50);
     }
     function closeModal() { document.getElementById('modalBg').style.display = 'none'; modalCallback = null; }
     function confirmModal() {
@@ -647,6 +651,12 @@ INDEX_HTML = """<!DOCTYPE html>
     function showInstructions() {
         document.getElementById('helpModalBg').style.display = 'flex';
     }
+
+    // --- SHUTDOWN SIGNAL (BEACON) ---
+    // Στέλνει σήμα τερματισμού στον Python server όταν κλείνει η καρτέλα
+    window.addEventListener('pagehide', function() {
+        navigator.sendBeacon('/api/shutdown');
+    });
 </script>
 </body>
 </html>"""
@@ -696,6 +706,18 @@ class CheatServerHandler(http.server.BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(str(e).encode('utf-8'))
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == '/api/shutdown':
+            self.send_response(200)
+            self._send_cors_headers()
+            self.end_headers()
+            print("\nBrowser tab closed. Shutting down server...")
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
         else:
             self.send_response(404)
             self.end_headers()
